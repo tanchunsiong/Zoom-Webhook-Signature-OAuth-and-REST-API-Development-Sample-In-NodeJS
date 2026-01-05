@@ -1,0 +1,490 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JavaScript / NodeJS Sample code for Zoom Meeting SDK, Zoom OAuth App, Webhooks and REST API</title>
+<style>
+/* Styles for the tab control */
+.tab {
+  overflow: hidden;
+  border: 1px solid #ccc;
+  background-color: #f1f1f1;
+}
+
+.tab button {
+  background-color: inherit;
+  float: left;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  transition: 0.3s;
+}
+
+.tab button:hover {
+  background-color: #ddd;
+}
+
+.tab button.active {
+  background-color: #ccc;
+}
+
+.tabcontent {
+  display: none;
+  padding: 6px 12px;
+  border: 1px solid #ccc;
+  border-top: none;
+}
+
+.tabcontent:first-child {
+  display: block;
+}
+</style>
+
+ <!-- Include Prism.js library -->
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/prism.min.js"></script>
+ <!-- Include Prism.js CSS for your preferred theme -->
+ <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism-okaidia.min.css">
+
+</head>
+<body>
+
+<h1>Sample code for nodejs with Zoom API / Zoom SDK</h1>
+    <p>This is a sample code page for nodejs. It shows the common code sample when interacting with Zoom Webhook, Zoom Meeting SDK Auth Signature, Zoom OAuth and Zoom REST API.</p>
+
+<h2>Github Link</h2>
+
+<a href="">github source code</a> <br/>
+<h2>Live Demo</h2>
+    <a href="/webhook">webhook</a> <br/>
+    <a href="/s2soauth">s2soauth</a><br/>
+    <a href="/redirecturlforoauth?code=xxxx">redirecturlforoauth?code=xxxx</a><br/>
+    <a href="/oauthrefreshtoken?code=xxxx">oauthrefreshtoken?code=xxxx</a><br/>
+    <br/>
+    <a href="/meetingsdktoken">Meeting SDK Token (GET for info, POST for signature)</a><br/>
+    <br/>
+    <a href="/callapi?accesstoken=xxxx">call API</a><br/>
+
+    <br/>
+    <br/>
+    <h2>Code Samples</h2>
+<div class="tab">
+  <a href="#handling-webhook"><button class="tablinks" onclick="openTab(event, 'handling-webhook')">Handling Webhook</button></a>
+  <a href="#get-access-token"><button class="tablinks" onclick="openTab(event, 'get-access-token')">Get Access Token (S2S Oauth)</button></a>
+  <a href="#redirect-url-for-oauth"><button class="tablinks" onclick="openTab(event, 'redirect-url-for-oauth')">Redirect URL / Get Access Token (OAuth)</button></a>
+  <a href="#generate-meeting-sdk-auth-signature"><button class="tablinks" onclick="openTab(event, 'generate-meeting-sdk-auth-signature')">Meeting SDK Token</button></a>
+  <a href="#get-refresh-token"><button class="tablinks" onclick="openTab(event, 'get-refresh-token')">OAuth Refresh Token</button></a>
+  <a href="#call-zoom-rest-api"><button class="tablinks" onclick="openTab(event, 'call-zoom-rest-api')">Call REST API</button></a>
+  <a href="#environment-variables"><button class="tablinks" onclick="openTab(event, 'environment-variables')">.env reference</button></a>
+  <a href="#Tab8"><button class="tablinks" onclick="openTab(event, 'Tab8')">Unused</button></a>
+</div>
+
+
+<div id="handling-webhook" class="tabcontent">
+  <h3>Tab 1 Content</h3>
+
+  <pre>
+   <code class="language-javascript">
+ // Define a function to handle webhook requests
+function handleWebhookRequest(req, res, secretToken, path) {
+
+
+  if (req.method === 'POST') {
+  // Check if the event type is "endpoint.url_validation"
+  if (req.body.event === 'endpoint.url_validation') {
+    const hashForValidate = crypto.createHmac('sha256', secretToken)
+      .update(req.body.payload.plainToken)
+      .digest('hex');
+
+    res.status(200).json({
+      "plainToken": req.body.payload.plainToken,
+      "encryptedToken": hashForValidate
+    });
+  } else {
+
+
+    res.status(200).send();
+  }
+}else if (req.method === 'GET') {
+
+
+
+} else {
+  // Handle unsupported HTTP methods
+  res.status(405).send("Method Not Allowed");
+}
+
+}
+
+
+
+app.post('/webhook/', (req, res) => {handleWebhookRequest(req,res, process.env.ZOOM_WEBHOOK_SECRET_TOKEN,"webhook");});
+app.get('/webhook/', (req, res) => {handleWebhookRequest(req,res, process.env.ZOOM_WEBHOOK_SECRET_TOKEN,"webhook");});
+
+</code>
+</pre>
+  
+</div>
+
+<div id="get-access-token" class="tabcontent">
+  <h3>Tab 2 Content</h3>
+  <pre>
+    <code class="language-javascript">
+// Function to fetch a bearer token
+async function fetchBearerToken() {
+  try {
+    // Create a Basic Authorization header with client credentials
+    const credentials = Buffer.from(`${process.env.ZOOM_S2S_CLIENT_ID}:${process.env.ZOOM_S2S_CLIENT_SECRET}`).toString('base64');
+    const apiUrl = `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${process.env.ZOOM_S2S_ACCOUNTID}`;
+    
+    // Define the token request parameters
+    const tokenRequestData = {
+      method: 'POST',
+      url: apiUrl,
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      
+    };
+
+    // Send the token request
+    const response = await axios(tokenRequestData);
+
+    // Extract the access token from the response
+    const accessToken = response.data.access_token;
+    // Return 
+    return accessToken;
+   
+  } catch (error) {
+    return error.message;
+  }
+}
+    </code>
+    </pre>
+</div>
+
+<div id="redirect-url-for-oauth" class="tabcontent">
+  <h3>Tab 3 Content</h3>
+ <pre>
+    <code class="language-javascript">
+
+  // Define a function to handle the common logic for saving and retrieving data
+function handleRedirectURLDataRequest(path, clientId,clientSecret, req, res){
+  //post doesn't seem to be used
+ var filename = "/var/www/asdc.cc/zoom-sdk-signature-generator/"+path+".txt"
+
+  if (req.method === 'POST') {
+
+    //handle get
+  } else if (req.method === 'GET') {
+
+
+    const codeFromQueryString = req.query.code; // Get the token from the query string
+
+    if (codeFromQueryString && codeFromQueryString.length>=1){
+    //get the request token from zoom's oauth
+
+
+    const url = 'https://zoom.us/oauth/token';
+    const data = {
+      code: codeFromQueryString,
+      grant_type: 'authorization_code',
+      redirect_uri: 'https://asdc.cc/'+path
+    };
+    
+    const headers = {
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    };
+    
+    axios.post(url, new URLSearchParams(data).toString(), { headers })
+      .then(response => {
+
+        fs.writeFile(filename, JSON.stringify(response.data), 'utf8', function (err) {
+          if (err) {
+            return console.log(err);
+          }
+          console.log("The file was saved!");
+        });
+
+        console.log(response.data);
+        res.status(200).json(response.data);
+        // You can access the access_token in response.data.access_token
+      })
+      .catch(error => {
+        console.error(error);
+        res(error);
+        // Handle any errors here
+      });
+
+    }
+    //if there is no querystring entered
+    else{
+      fs.readFile(filename, 'utf8', (err, data) => {
+        if (err) {
+          return res.status(500).json({ error: 'Error reading file' });
+        }
+    
+        try {
+          // Parse the JSON data
+          const jsonData = JSON.parse(data);
+          // Send the JSON data as a response
+          res.status(200).json(jsonData);
+        } catch (parseError) {
+          res.status(500).json({ error: 'Error parsing JSON data' });
+        }
+      });
+  }
+  }
+}
+
+// Define routes for different endpoints
+app.post('/redirecturlformsdkoauth/', (req, res) => {
+  var clientid=process.env.ZOOM_CLIENT_ID_NEW;
+  var clientsecret=process.env.ZOOM_CLIENT_SECRET_NEW;
+  handleRedirectURLDataRequest("redirecturlformsdkoauth",clientid,clientsecret, req, res);
+});
+
+</code>
+</pre>
+</div>
+
+
+<div id="generate-meeting-sdk-auth-signature" class="tabcontent">
+  <h3>Tab 4 Content</h3>
+  <pre>
+    <code class="language-javascript">
+app.post('/meeting/', (req, res) => {
+
+  const now = Math.round((new Date().getTime()) / 1000)
+  //make it valid 5 minute ago
+  const iat =now -  5 * 60;
+    //make it expire 30 minutes later
+    const exp = now + 30 * 60;
+
+  const oHeader = { alg: 'HS256', typ: 'JWT' }
+
+  const oPayload = {
+    sdkKey: process.env.ZOOM_SDK_KEY,
+    mn: req.body.meetingNumber,
+    role: req.body.role,
+    iat: iat,
+    exp: exp,
+    appKey: process.env.ZOOM_SDK_KEY,
+    tokenExp: exp 
+  }
+
+  const sHeader = JSON.stringify(oHeader)
+  const sPayload = JSON.stringify(oPayload)
+  const signature = KJUR.jws.JWS.sign('HS256', sHeader, sPayload, process.env.ZOOM_SDK_SECRET)
+
+  res.json({
+    signature: signature,
+    sdkKey:process.env.ZOOM_SDK_KEY
+  })
+})
+</code>
+</pre>
+</div>
+
+
+<div id="get-refresh-token" class="tabcontent">
+  <h3>Tab 5 Content</h3>
+  <pre>
+    <code class="language-javascript">
+      app.get('/oauthrefreshtoken', async (req, res) => {
+        try {
+            console.log("handle_oauth_refresh_token_data_request");
+            
+            var oauth_client_id="";
+            var oauth_client_secret="";
+            const code = req.query.code; // Get the token from the query string
+            if (code && code.length>=1){
+        
+              
+              // Encode the client ID and client secret
+              const credentials = `${oauth_client_id}:${oauth_client_secret}`;
+              const credentials_encoded = base64.encode(credentials);
+              console.log(credentials);
+              console.log(code);
+    
+    
+    
+              const url = 'https://zoom.us/oauth/token';
+              const data = {
+                refresh_token: code,
+                grant_type: 'refresh_token'
+              };
+              
+              const headers = {
+                Authorization: `Basic ${Buffer.from(`${oauth_client_id}:${oauth_client_secret}`).toString('base64')}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+              };
+              
+              axios.post(url, new URLSearchParams(data).toString(), { headers })
+                .then(response => {
+          
+        
+          
+                  console.log(response.data);
+                  res.status(200).json(response.data);
+                  // You can access the access_token in response.data.access_token
+                })
+                .catch(error => {
+                  console.error(error);
+                  res(error);
+                  // Handle any errors here
+                });
+    
+          }
+          else{
+            console.log("issue with ?code query string");
+    
+          }
+        } catch (error) {
+            console.error("Error:", error.message);
+            res.status(500).send("Internal Server Error");
+        }
+    });
+    
+    </code>
+</pre>
+
+  
+</div>
+
+
+<div id="call-zoom-rest-api" class="tabcontent">
+<h3>Tab 6 Content</h3>
+  <pre>
+    <code class="language-javascript">
+// Function to make a REST API request using the bearer token
+async function makeApiRequestWithToken(bearerToken,meetingNumber) {
+  try {
+    const apiUrl = `https://api.zoom.us/v2/meetings/${meetingNumber}/jointoken/local_recording`;
+    
+    // Define your API request parameters
+    const apiRequestData = {
+      method: 'GET', // Change to the HTTP method you need
+      url: apiUrl, // Replace with your API endpoint URL
+      headers: {
+        'Authorization': `Bearer ${bearerToken}`,
+        // Add other headers as needed
+      },
+    };
+
+    // Send the API request with the bearer token
+    const response = await axios(apiRequestData);
+    const recordingToken = response.data.token;
+    // Return the response data
+    return recordingToken ;
+  } catch (error) {
+    console.error('Error making API request:', error.message);
+    return error.message ; // Optionally rethrow the error
+  }
+}
+</code>
+</pre>
+
+  
+</div>
+
+
+
+<div id="environment-variables" class="tabcontent">
+<h3>Tab 7 Content</h3>
+  <pre>
+    <code class="language-javascript">
+
+ZOOM_VIDEO_SDK_KEY="xxxxxxx"
+ZOOM_VIDEO_SDK_SECRET="xxxxxxx"
+
+#ZOOM_SDK_KEY="xxxxxxx"
+#ZOOM_SDK_SECRET="xxxxxxx"
+
+
+ZOOM_WEBHOOK_SECRET_TOKEN="xxxxxxx"
+
+
+ZOOM_MSDKWEBHOOK_SECRET_TOKEN="xxxxxxx"
+ZOOM_SDK_KEY="xxxxxxx"
+ZOOM_SDK_SECRET="xxxxxxx"
+ZOOM_CLIENT_ID_NEW="xxxxxxx"
+ZOOM_CLIENT_SECRET_NEW="xxxxxxx"
+
+
+ZOOM_VSDK_WEBHOOK_SECRET_TOKEN="xxxxxxx"
+
+ZOOM_S2SOAUTH_WEBHOOK_SECRET_TOKEN="xxxxxxx"
+ZOOM_S2S_CLIENT_ID="xxxxxxx"
+ZOOM_S2S_CLIENT_SECRET="xxxxxxx"
+ZOOM_S2S_ACCOUNTID="xxxxxxx"
+
+ZOOM_OAUTH_ACCOUNTLEVEL_WEBHOOK_SECRET_TOKEN="xxxxxxx"
+ZOOM_OAUTH_ACCOUNTLEVEL_CLIENT_ID="xxxxxxx"
+ZOOM_OAUTH_ACCOUNTLEVEL_CLIENT_SECRET="xxxxxxx"
+
+
+ZOOM_OAUTH_USERLEVEL_WEBHOOK_SECRET_TOKEN="xxxxxxx"
+ZOOM_OAUTH_USERLEVEL_CLIENT_ID="xxxxxxx"
+ZOOM_OAUTH_USERLEVEL_CLIENT_SECRET="xxxxxxx"
+
+
+
+
+</code>
+</pre>
+</div>
+
+
+
+<div id="Tab8" class="tabcontent">
+<h3>Tab 8 Content</h3>
+  <pre>
+    <code class="language-javascript">
+    </code>
+</pre>
+
+  
+</div>
+
+
+<script>
+function openTab(evt, tabName) {
+  // Get all elements with class="tabcontent" and hide them
+  var tabcontent = document.getElementsByClassName("tabcontent");
+  for (var i = 0; i < tabcontent.length; i++) {
+    tabcontent[i].style.display = "none";
+  }
+
+  // Get all elements with class="tablinks" and remove the class "active"
+  var tablinks = document.getElementsByClassName("tablinks");
+  for (var i = 0; i < tablinks.length; i++) {
+    tablinks[i].className = tablinks[i].className.replace(" active", "");
+  }
+
+  // Show the current tab, and add an "active" class to the button that opened the tab
+  document.getElementById(tabName).style.display = "block";
+  evt.currentTarget.className += " active";
+}
+
+// Check if there's a hash in the URL and open the corresponding tab
+window.onload = function() {
+  var hash = window.location.hash;
+  if (hash) {
+    var tabName = hash.substring(1);
+    var tab = document.getElementById(tabName);
+    if (tab) {
+      var evt = document.createEvent("MouseEvents");
+      evt.initEvent("click", true, true);
+      document.querySelector("button.tablinks").dispatchEvent(evt);
+    }
+  }
+};
+</script>
+
+</body>
+</html>
